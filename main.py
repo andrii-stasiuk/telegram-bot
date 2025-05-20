@@ -31,9 +31,13 @@ telegram_app.add_handler(CommandHandler("all", tag_all))
 
 # Webhook endpoint for Telegram
 @app_flask.post("/webhook")
-async def webhook():
-    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-    await telegram_app.process_update(update)
+def webhook():
+    from telegram import Update
+    import asyncio
+    data = request.get_json(force=True)
+    print("📩 Запит від Telegram:", data)
+    update = Update.de_json(data, telegram_app.bot)
+    asyncio.run(telegram_app.process_update(update))
     return "OK"
 
 # Start everything
