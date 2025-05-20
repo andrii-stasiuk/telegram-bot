@@ -1,56 +1,56 @@
-import os
 import asyncio
+import logging
 from flask import Flask, request
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler,
-    MessageHandler, ContextTypes, filters
-)
+from telegram import Update, ChatMember, ChatMemberUpdated
+from telegram.constants import ChatType, ParseMode
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # https://your-service.onrender.com/webhook
+import os
+
+# === Logging ===
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# === Init ===
+TOKEN = os.getenv("BOT_TOKEN")  # 🔒 додай свій токен у Render env vars
+WEBHOOK_PATH = "/webhook"
 
 app = Flask(__name__)
+telegram_app = Application.builder().token(TOKEN).build()
 
-# Зберігаємо user_ids окремо для кожного чату
-user_ids_by_chat = {}
-
-# Створюємо telegram_app з можливістю manual initialization
-telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-# 🧠 Записуємо всіх, хто щось писав
-async def save_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    user_id = update.effective_user.id
-
-    if update.effective_chat.type in ["group", "supergroup"]:
-        if chat_id not in user_ids_by_chat:
-            user_ids_by_chat[chat_id] = set()
-        user_ids_by_chat[chat_id].add(user_id)
-        print(f"➕ Додано user {user_id} до чату {chat_id}")
-
-# 📣 Команда /all тегне всіх збережених користувачів
+# === Handlers ===
 async def tag_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if chat_id not in user_ids_by_chat or not user_ids_by_chat[chat_id]:
-        await update.message.reply_text("Немає збережених користувачів.")
+    chat = update.effective_chat
+
+    # Перевірка: команда лише для груп
+    if chat.type not in [ChatType.GROUP, ChatType.SUPERGROUP]:
+        await update.message.reply_text("❌ Ця команда доступна лише в групах.")
         return
 
-    mentions = [f"[user](tg://user?id={uid})" for uid in user_ids_by_chat[chat_id]]
-    chunks = [mentions[i:i + 10] for i in range(0, len(mentions), 10)]
+    # Отримання списку учасників (до 200 — обмеження Telegram API)
+    try:
+        members = []
+        async for member in context.bot.get_chat_administrators(chat.id):
+            if not member.user.is_bot:
+                name = f"@{member.user.username}" if member.user.username else member.user.first_name
+                members.append(name)
 
-    for group in chunks:
-        await update.message.reply_text(" ".join(group), parse_mode="Markdown")
+        if members:
+            text = "👥 " + " ".join(members)
+            await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await update.message.reply_text("⚠️ Не вдалося отримати список учасників.")
+    except Exception as e:
+        logger.error(f"❌ Помилка при отриманні учасників: {e}")
+        await update.message.reply_text("❌ Сталася помилка.")
 
-# 🧩 Обробники
-telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), save_user))
 telegram_app.add_handler(CommandHandler("all", tag_all))
 
-# 🌐 Flask endpoint
-@app.post("/webhook")
+
+# === Webhook endpoint ===
+@app.post(WEBHOOK_PATH)
 def webhook():
     data = request.get_json(force=True)
-    print("📥 RAW update from Telegram:", data)
 
     async def handle_update():
         if not telegram_app._initialized:
@@ -58,16 +58,11 @@ def webhook():
         update = Update.de_json(data, telegram_app.bot)
         await telegram_app.process_update(update)
 
-    asyncio.run(handle_update())
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    loop.create_task(handle_update())
     return "OK"
-
-# 🚀 Запуск
-if __name__ == "__main__":
-    async def main():
-        await telegram_app.initialize()
-        await telegram_app.bot.delete_webhook()
-        await telegram_app.bot.set_webhook(WEBHOOK_URL)
-        print("✅ Webhook встановлено:", WEBHOOK_URL)
-        app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
-
-    asyncio.run(main())
