@@ -2,20 +2,21 @@ import os
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import asyncio
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Example: https://your-service.onrender.com/webhook
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 user_ids = set()
-app_flask = Flask(__name__)  # Flask web server
+app_flask = Flask(__name__)
 
+# Ініціалізуємо Application один раз і запускаємо event loop окремо
 telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# Handler: save user who sends any message
+# Обробники
 async def save_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_ids.add(update.effective_user.id)
 
-# Handler: command /all - tag all collected users
 async def tag_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_ids:
         await update.message.reply_text("Немає збережених користувачів для тегання.")
@@ -29,25 +30,31 @@ async def tag_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
 telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), save_user))
 telegram_app.add_handler(CommandHandler("all", tag_all))
 
-# Webhook endpoint for Telegram
-@app_flask.post("/webhook")
+# Створюємо і запускаємо event loop вручну
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
+@app_flask.route("/webhook", methods=["POST"])
 def webhook():
-    from telegram import Update
-    import asyncio
     data = request.get_json(force=True)
-    print("📩 Запит від Telegram:", data)
     update = Update.de_json(data, telegram_app.bot)
-    asyncio.run(telegram_app.process_update(update))
+
+    future = asyncio.run_coroutine_threadsafe(
+        telegram_app.process_update(update),
+        loop
+    )
+    try:
+        future.result(timeout=10)
+    except Exception as e:
+        print(f"Error processing update: {e}")
+
     return "OK"
 
-# Start everything
 if __name__ == "__main__":
-    import asyncio
+    # Спочатку налаштовуємо webhook
+    loop.run_until_complete(telegram_app.bot.delete_webhook())
+    loop.run_until_complete(telegram_app.bot.set_webhook(WEBHOOK_URL))
+    print(f"Webhook set to: {WEBHOOK_URL}")
 
-    async def main():
-        await telegram_app.bot.delete_webhook()
-        await telegram_app.bot.set_webhook(WEBHOOK_URL)
-        print("Webhook set to:", WEBHOOK_URL)
-        app_flask.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
-
-    asyncio.run(main())
+    # Запускаємо Flask сервер
+    app_flask.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
