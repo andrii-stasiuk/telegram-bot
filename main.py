@@ -3,16 +3,16 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-user_ids = set()  # зберігаємо ID користувачів, які щось писали
+user_ids = set()  # Р·Р±РµСЂС–РіР°С”РјРѕ ID РєРѕСЂРёСЃС‚СѓРІР°С‡С–РІ, СЏРєС– С‰РѕСЃСЊ РїРёСЃР°Р»Рё
 
-# Коли хтось щось написав — додаємо його ID
+# РљРѕР»Рё С…С‚РѕСЃСЊ С‰РѕСЃСЊ РЅР°РїРёСЃР°РІ вЂ” РґРѕРґР°С”РјРѕ Р№РѕРіРѕ ID
 async def save_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_ids.add(update.effective_user.id)
 
-# Команда /all — тегнути всіх збережених користувачів
+# РљРѕРјР°РЅРґР° /all вЂ” С‚РµРіРЅСѓС‚Рё РІСЃС–С… Р·Р±РµСЂРµР¶РµРЅРёС… РєРѕСЂРёСЃС‚СѓРІР°С‡С–РІ
 async def tag_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_ids:
-        await update.message.reply_text("Немає збережених користувачів для тегання.")
+        await update.message.reply_text("РќРµРјР°С” Р·Р±РµСЂРµР¶РµРЅРёС… РєРѕСЂРёСЃС‚СѓРІР°С‡С–РІ РґР»СЏ С‚РµРіР°РЅРЅСЏ.")
         return
 
     mentions = []
@@ -26,5 +26,5 @@ async def tag_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), save_user))
 app.add_handler(CommandHandler("all", tag_all))
-print("Бот працює...")
+print("Р‘РѕС‚ РїСЂР°С†СЋС”...")
 app.run_polling()
