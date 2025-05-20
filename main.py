@@ -58,10 +58,17 @@ def webhook():
         update = Update.de_json(data, telegram_app.bot)
         await telegram_app.process_update(update)
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(handle_update())
-    loop.close()
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:  # Якщо немає поточного loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    # Якщо loop вже працює — використовуємо `create_task`
+    if loop.is_running():
+        asyncio.create_task(handle_update())
+    else:
+        loop.run_until_complete(handle_update())
 
     return "OK"
 
