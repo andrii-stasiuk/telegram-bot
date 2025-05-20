@@ -42,7 +42,7 @@ async def tag_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for group in chunks:
         await update.message.reply_text(" ".join(group), parse_mode="Markdown")
 
-# 🧹 Обробники
+# 🧩 Обробники
 telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), save_user))
 telegram_app.add_handler(CommandHandler("all", tag_all))
 
@@ -58,7 +58,11 @@ def webhook():
         update = Update.de_json(data, telegram_app.bot)
         await telegram_app.process_update(update)
 
-    asyncio.get_event_loop().create_task(handle_update())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(handle_update())
+    loop.close()
+
     return "OK"
 
 # 🚀 Запуск
