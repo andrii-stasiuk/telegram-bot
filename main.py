@@ -28,12 +28,3 @@ app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), save_user))
 app.add_handler(CommandHandler("all", tag_all))
 print("Бот працює...")
 app.run_polling()
-
-
-
-app.get('/', (req, res) => {
-  res.send('Hello World!')
-})
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
-})
