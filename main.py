@@ -1,5 +1,8 @@
 import os
 import asyncio
+import threading
+import time
+import requests
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import (
@@ -60,11 +63,10 @@ def webhook():
 
     try:
         loop = asyncio.get_event_loop()
-    except RuntimeError:  # Якщо немає поточного loop
+    except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-    # Якщо loop вже працює — використовуємо `create_task`
     if loop.is_running():
         asyncio.create_task(handle_update())
     else:
@@ -72,8 +74,26 @@ def webhook():
 
     return "OK"
 
+# ✅ Простий пінг-ендпоінт
+@app.route("/ping")
+def ping():
+    return "pong", 200
+
+# 🕒 Фонове завдання для підтримання активності інстанції
+def keep_alive():
+    while True:
+        try:
+            time.sleep(50)
+            requests.get(f"{WEBHOOK_URL}/ping")
+            print("🔄 Активність: надіслано ping на /ping")
+        except Exception as e:
+            print(f"⚠️ Ping error: {e}")
+
 # 🚀 Запуск
 if __name__ == "__main__":
+    # Запускаємо пінг в окремому потоці
+    threading.Thread(target=keep_alive, daemon=True).start()
+
     async def main():
         await telegram_app.initialize()
         await telegram_app.bot.delete_webhook()
