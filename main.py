@@ -89,6 +89,12 @@ def keep_alive():
         except Exception as e:
             print(f"⚠️ Ping error: {e}")
 
+# 🟢 Ping endpoint for keeping the service awake
+@app.get("/webhook/ping")
+def ping():
+    print("🔄 Ping received to prevent spin down.")
+    return "Pong", 200
+
 # 🚀 Запуск
 if __name__ == "__main__":
     # Запускаємо пінг в окремому потоці
