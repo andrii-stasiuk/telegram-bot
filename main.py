@@ -77,16 +77,16 @@ def webhook():
 # 🟢 Ping endpoint for keeping the service awake
 @app.get("/webhook/ping")
 def ping():
-    print("🔄 Ping received to prevent spin down.")
+    print("🔄 Ping received to prevent spin down.", flush=True)
     return "Pong", 200
 
 # 🕒 Фонове завдання для підтримання активності інстанції
 def keep_alive():
     while True:
         try:
-            time.sleep(50)
-            requests.get(f"{WEBHOOK_URL}/ping")
-            print("🔄 Активність: надіслано ping на /ping")
+            time.sleep(49)
+            response = requests.get(f"{WEBHOOK_URL}/webhook/ping")
+            print(f"🔄 Self-ping sent, response: {response.status_code}")
         except Exception as e:
             print(f"⚠️ Ping error: {e}")
 
